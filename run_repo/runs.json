@@ -1,0 +1,76 @@
+[
+  {
+    "source_file": "/path/to/file1.mp3",
+    "timestamp": "2026-01-26T01:14:54.481250Z",
+    "options": {
+      "mode": "Silence",
+      "min_silence": 2000,
+      "silence_thresh": -40
+    }
+  },
+  {
+    "source_file": "/path/to/file1.mp3",
+    "timestamp": "2026-01-26T01:14:54.480302Z",
+    "options": {
+      "mode": "Silence",
+      "min_silence": 1000,
+      "silence_thresh": -40
+    }
+  },
+  {
+    "source_file": "/path/to/file2.mp3",
+    "timestamp": "2026-01-26T01:14:54.481906Z",
+    "options": {
+      "mode": "Time",
+      "chunk_length": 60000
+    }
+  },
+  {
+    "source_file": "/home/sudhir/Music/Non Stop Best Dance Bhajans of Radha Krishna 2022 राधा कृष्ण के हिट कीर्तन Kanhaiya Songs   Madhavas.mp3",
+    "timestamp": "2026-01-26T01:38:08.455996Z",
+    "options": {
+      "mode": "Silence",
+      "min_silence": 449,
+      "silence_thresh": -26,
+      "chunk_length": 60000,
+      "silence_offset": -16,
+      "adaptive": false,
+      "use_silence_intervals": false,
+      "bitrate_kbps": 192,
+      "vbr_quality": null,
+      "silence_padding_ms": 3000
+    }
+  },
+  {
+    "source_file": "/home/sudhir/Music/NON STOP BEST KRISHNA BHAJANS - BEAUTIFUL COLLECTION OF MOST POPULAR SHRI KRISHNA SONGS.mp3",
+    "timestamp": "2026-01-26T02:00:14.740067Z",
+    "options": {
+      "mode": "Silence",
+      "min_silence": 1744,
+      "silence_thresh": -30,
+      "chunk_length": 60000,
+      "silence_offset": -16,
+      "adaptive": false,
+      "use_silence_intervals": false,
+      "bitrate_kbps": 192,
+      "vbr_quality": null,
+      "silence_padding_ms": 3000
+    }
+  },
+  {
+    "source_file": "/home/sudhir/Music/NON STOP BEST KRISHNA BHAJANS - कृष्णा भजन - BEAUTIFUL COLLECTION OF MOST POPULAR SHRI KRISHNA SONGS.mp3",
+    "timestamp": "2026-01-26T02:32:55.558167Z",
+    "options": {
+      "mode": "Silence",
+      "min_silence": 1790,
+      "silence_thresh": -32,
+      "chunk_length": 60000,
+      "silence_offset": -16,
+      "adaptive": false,
+      "use_silence_intervals": false,
+      "bitrate_kbps": 192,
+      "vbr_quality": null,
+      "silence_padding_ms": 3000
+    }
+  }
+]

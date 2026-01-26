@@ -38,13 +38,13 @@ def run_split(sc:cm.scriptClass):
             silence_thresh = int(silence_thresh_var.get())
             for f in files:
                 cm.log(f"Splitting {os.path.basename(f)} on silence...",sc)
-                output_files = split_mp3_on_silence(sc, f, outdir, min_silence, silence_thresh)
+                output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh, sc=sc)
                 cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc)
         else:
             chunk_length = int(chunk_length_var.get())
             for f in files:
                 cm.log(f"Splitting {os.path.basename(f)} by time interval...",sc)
-                output_files = split_mp3_by_time(sc, f, outdir, chunk_length, sc)
+                output_files = split_mp3_by_time(f, outdir, chunk_length, sc=sc)
                 cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc)
         messagebox.showinfo("Success", "MP3 splitting completed!")
         cm.log("Splitting completed successfully.",sc)
