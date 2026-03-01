@@ -21,15 +21,15 @@ def run_split(sc:cm.scriptClass):
     files = files_var.get().strip().split('\n')
     outdir = outdir_var.get().strip()
     mode = mode_var.get()
-    cm.log("Starting split operation...",sc)
+    cm.log("Starting split operation...",sc, None)
 
     if not files or not files[0]:
         messagebox.showerror("Error", "Please select one or more MP3 files.")
-        cm.log("No files selected.",sc)
+        cm.log("No files selected.",sc, None)
         return
     if not outdir:
         messagebox.showerror("Error", "Please select an output directory.")
-        cm.log("No output directory selected.",sc)
+        cm.log("No output directory selected.",sc, None)
         return
 
     try:
@@ -37,20 +37,20 @@ def run_split(sc:cm.scriptClass):
             min_silence = int(min_silence_var.get())
             silence_thresh = int(silence_thresh_var.get())
             for f in files:
-                cm.log(f"Splitting {os.path.basename(f)} on silence...",sc)
+                cm.log(f"Splitting {os.path.basename(f)} on silence...",sc, None)
                 output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh, sc=sc)
-                cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc)
+                cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc, None)
         else:
             chunk_length = int(chunk_length_var.get())
             for f in files:
-                cm.log(f"Splitting {os.path.basename(f)} by time interval...",sc)
+                cm.log(f"Splitting {os.path.basename(f)} by time interval...",sc, None)
                 output_files = split_mp3_by_time(f, outdir, chunk_length, sc=sc)
-                cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc)
+                cm.log(f"Created {len(output_files)} chunks for {os.path.basename(f)}",sc, None)
         messagebox.showinfo("Success", "MP3 splitting completed!")
-        cm.log("Splitting completed successfully.",sc)
+        cm.log("Splitting completed successfully.",sc, None)
     except Exception as e:
         tb = traceback.format_exc()
-        cm.log(f"Error: {e}\n{tb}",sc)
+        cm.log(f"Error: {e}\n{tb}",sc, None)
         messagebox.showerror("Error", f"An error occurred:\n{e}")
 
 def start_split_thread():

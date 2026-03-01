@@ -4,7 +4,8 @@ from pydub.silence import split_on_silence, detect_silence
 import statistics
 import os
 from mutagen.easyid3 import EasyID3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, APIC, COMM
+from mutagen.id3 import ID3
+from mutagen.id3._frames import TIT2, TPE1, TALB, TDRC, APIC, COMM
 
 import common as cm
 
@@ -28,24 +29,24 @@ def copy_metadata(source_file, target_file, part_num=None):
         
         # Copy common tags
         if 'TIT2' in source_tags or 'title' in source_tags:
-            title = source_tags.get('title', source_tags.get('TIT2', ['']))[0]
+            title = source_tags.get('title', source_tags.get('TIT2', ['']))[0] # type: ignore
             if title and part_num is not None:
                 title = f"{title} (Part {part_num})"
             if title:
                 target_tags.add(TIT2(encoding=3, text=[title]))
         
         if 'TPE1' in source_tags or 'artist' in source_tags:
-            artist = source_tags.get('artist', source_tags.get('TPE1', ['']))[0]
+            artist = source_tags.get('artist', source_tags.get('TPE1', ['']))[0] # type: ignore
             if artist:
                 target_tags.add(TPE1(encoding=3, text=[artist]))
         
         if 'TALB' in source_tags or 'album' in source_tags:
-            album = source_tags.get('album', source_tags.get('TALB', ['']))[0]
+            album = source_tags.get('album', source_tags.get('TALB', ['']))[0] # type: ignore
             if album:
                 target_tags.add(TALB(encoding=3, text=[album]))
         
         if 'TDRC' in source_tags or 'date' in source_tags:
-            date = source_tags.get('date', source_tags.get('TDRC', ['']))[0]
+            date = source_tags.get('date', source_tags.get('TDRC', ['']))[0] # type: ignore
             if date:
                 target_tags.add(TDRC(encoding=3, text=[date]))
         
@@ -58,14 +59,15 @@ def copy_metadata(source_file, target_file, part_num=None):
 
 def split_mp3_on_silence(mp3_path, out_dir, min_silence_len=1000, silence_thresh=None, 
                          keep_silence=500, silence_offset=-16, bitrate_kbps=192, 
-                         vbr_quality=None, silence_padding_ms=3000, sc=None):
+                         vbr_quality=None, silence_padding_ms=3000, sc=None, logger=None):
     """Split an MP3 by silence.
 
     - If `silence_thresh` is None, compute it relative to the file's overall dBFS using `silence_offset`.
     - `sc` is an optional scriptClass instance used for GUI logging; if None, logging is skipped.
+    - `logger` is an optional logger instance used for logging; if None, logging is skipped.
     """
     if sc:
-        cm.log("split_mp3_on_silence: creating AudioSegment from file...", sc)
+        cm.log("split_mp3_on_silence: creating AudioSegment from file...", sc, logger)
 
     audio = AudioSegment.from_file(mp3_path)
 
@@ -74,7 +76,7 @@ def split_mp3_on_silence(mp3_path, out_dir, min_silence_len=1000, silence_thresh
         silence_thresh = audio.dBFS + silence_offset
 
     if sc:
-        cm.log("split_mp3_on_silence: creating chunks...", sc)
+        cm.log("split_mp3_on_silence: creating chunks...", sc, logger)
 
     chunks = split_on_silence(
         audio,
@@ -84,7 +86,7 @@ def split_mp3_on_silence(mp3_path, out_dir, min_silence_len=1000, silence_thresh
     )
 
     if sc:
-        cm.log(f"split_mp3_on_silence: created {len(chunks)} chunks", sc)
+        cm.log(f"split_mp3_on_silence: created {len(chunks)} chunks", sc, logger)
 
     os.makedirs(out_dir, exist_ok=True)
     files = []
@@ -96,44 +98,34 @@ def split_mp3_on_silence(mp3_path, out_dir, min_silence_len=1000, silence_thresh
             chunk = pad + chunk + pad
 
         out_file = os.path.join(out_dir, f"{base}_part{i+1}.mp3")
-        if sc:
-            cm.log(f"split_mp3_on_silence: exporting {out_file}", sc)
-        else:
-            logging.getLogger("split_mp3_cli").info(f"split_mp3_on_silence: exporting {out_file}")
+
+        cm.log(f"split_mp3_on_silence: exporting {out_file}", sc, logger)
         export_kwargs = {}
         if vbr_quality is not None and str(vbr_quality).strip() != "":
             # use ffmpeg VBR quality flag
             export_kwargs['parameters'] = ['-q:a', str(vbr_quality)]
-            if sc:
-                cm.log(f"split_mp3_on_silence: using VBR quality={vbr_quality} for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_on_silence: using VBR quality={vbr_quality} for {out_file}")
+            cm.log(f"split_mp3_on_silence: using VBR quality={vbr_quality} for {out_file}", sc, logger)
         else:
             export_kwargs['bitrate'] = f"{bitrate_kbps}k"
-            if sc:
-                cm.log(f"split_mp3_on_silence: using bitrate={bitrate_kbps}k for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_on_silence: using bitrate={bitrate_kbps}k for {out_file}")
+            cm.log(f"split_mp3_on_silence: using bitrate={bitrate_kbps}k for {out_file}", sc, logger)
 
         chunk.export(out_file, format="mp3", **export_kwargs)
         # Copy metadata from source to target
         try:
             copy_metadata(mp3_path, out_file, part_num=i+1)
         except Exception as e:
-            if sc:
-                cm.log(f"split_mp3_on_silence: warning - could not copy metadata: {e}", sc)
+            cm.log(f"split_mp3_on_silence: warning - could not copy metadata: {e}", sc, logger)
         files.append(out_file)
 
-    if sc:
-        cm.log(f"split_mp3_on_silence: returning {len(files)} files", sc)
+    cm.log(f"split_mp3_on_silence: returning {len(files)} files", sc, logger)
     return files
 
 
 def split_mp3_by_time(mp3_path, out_dir, chunk_length_ms=60000, bitrate_kbps=192, 
-                      vbr_quality=None, silence_padding_ms=3000, sc=None):
+                      vbr_quality=None, silence_padding_ms=3000, sc=None, logger=None):
     """Split an MP3 into fixed-length chunks."""
     if sc:
-        cm.log("split_mp3_by_time: creating AudioSegment from file...", sc)
+        cm.log("split_mp3_by_time: creating AudioSegment from file...", sc, logger)
 
     audio = AudioSegment.from_file(mp3_path)
     os.makedirs(out_dir, exist_ok=True)
@@ -147,29 +139,21 @@ def split_mp3_by_time(mp3_path, out_dir, chunk_length_ms=60000, bitrate_kbps=192
             chunk = pad + chunk + pad
 
         out_file = os.path.join(out_dir, f"{base}_part{i+1}.mp3")
-        if sc:
-            cm.log(f"split_mp3_by_time: exporting {out_file}", sc)
+        cm.log(f"split_mp3_by_time: exporting {out_file}", sc, logger)
         export_kwargs = {}
         if vbr_quality is not None and str(vbr_quality).strip() != "":
             export_kwargs['parameters'] = ['-q:a', str(vbr_quality)]
-            if sc:
-                cm.log(f"split_mp3_by_time: using VBR quality={vbr_quality} for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_by_time: using VBR quality={vbr_quality} for {out_file}")
+            cm.log(f"split_mp3_by_time: using VBR quality={vbr_quality} for {out_file}", sc, logger)
         else:
             export_kwargs['bitrate'] = f"{bitrate_kbps}k"
-            if sc:
-                cm.log(f"split_mp3_by_time: using bitrate={bitrate_kbps}k for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_by_time: using bitrate={bitrate_kbps}k for {out_file}")
+            cm.log(f"split_mp3_by_time: using bitrate={bitrate_kbps}k for {out_file}", sc, logger)
 
         chunk.export(out_file, format="mp3", **export_kwargs)
         # Copy metadata from source to target
         try:
             copy_metadata(mp3_path, out_file, part_num=i+1)
         except Exception as e:
-            if sc:
-                cm.log(f"split_mp3_by_time: warning - could not copy metadata: {e}", sc)
+            cm.log(f"split_mp3_by_time: warning - could not copy metadata: {e}", sc, logger)
         files.append(out_file)
     return files
 
@@ -178,27 +162,24 @@ def split_mp3_by_silence_intervals(mp3_path, out_dir, min_silence_len=1000,
                                    silence_thresh=None, keep_silence=500, 
                                    silence_offset=-16, bitrate_kbps=192, 
                                    vbr_quality=None, silence_padding_ms=3000, 
-                                   sc=None):
+                                   sc=None, logger=None):
     """Split an MP3 into tracks by detecting long silence intervals between songs.
 
     Returns list of exported file paths. The function first detects silences using
     `detect_silence` and then exports audio segments between those silence ranges.
     """
-    if sc:
-        cm.log("split_mp3_by_silence_intervals: loading audio...", sc)
+    cm.log("split_mp3_by_silence_intervals: loading audio...", sc, logger)
 
     audio = AudioSegment.from_file(mp3_path)
 
     if silence_thresh is None:
         silence_thresh = audio.dBFS + silence_offset
 
-    if sc:
-        cm.log("split_mp3_by_silence_intervals: detecting silence ranges...", sc)
+    cm.log("split_mp3_by_silence_intervals: detecting silence ranges...", sc, logger)
 
     silences = detect_silence(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
     # detect_silence returns list of [start_ms, end_ms]
-    if sc:
-        cm.log(f"split_mp3_by_silence_intervals: found {len(silences)} silence ranges", sc)
+    cm.log(f"split_mp3_by_silence_intervals: found {len(silences)} silence ranges", sc, logger)
 
     # Build segments between silences
     segments = []
@@ -223,8 +204,7 @@ def split_mp3_by_silence_intervals(mp3_path, out_dir, min_silence_len=1000,
             seg_b = min(len(audio), seg_end + keep_silence)
             segments.append((seg_a, seg_b))
 
-    if sc:
-        cm.log(f"split_mp3_by_silence_intervals: will create {len(segments)} segments", sc)
+    cm.log(f"split_mp3_by_silence_intervals: will create {len(segments)} segments", sc, logger)
 
     os.makedirs(out_dir, exist_ok=True)
     files = []
@@ -237,51 +217,47 @@ def split_mp3_by_silence_intervals(mp3_path, out_dir, min_silence_len=1000,
             chunk = pad + chunk + pad
 
         out_file = os.path.join(out_dir, f"{base}_part{i+1}.mp3")
-        if sc:
-            cm.log(f"split_mp3_by_silence_intervals: exporting {out_file}", sc)
+        cm.log(f"split_mp3_by_silence_intervals: exporting {out_file}", sc, logger)
         export_kwargs = {}
         if vbr_quality is not None and str(vbr_quality).strip() != "":
             export_kwargs['parameters'] = ['-q:a', str(vbr_quality)]
-            if sc:
-                cm.log(f"split_mp3_by_silence_intervals: using VBR quality={vbr_quality} for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_by_silence_intervals: using VBR quality={vbr_quality} for {out_file}")
+            cm.log(f"split_mp3_by_silence_intervals: using VBR quality={vbr_quality} for {out_file}", sc, logger)
         else:
             export_kwargs['bitrate'] = f"{bitrate_kbps}k"
-            if sc:
-                cm.log(f"split_mp3_by_silence_intervals: using bitrate={bitrate_kbps}k for {out_file}", sc)
-            else:
-                logging.getLogger("split_mp3_cli").info(f"split_mp3_by_silence_intervals: using bitrate={bitrate_kbps}k for {out_file}")
+            cm.log(f"split_mp3_by_silence_intervals: using bitrate={bitrate_kbps}k for {out_file}", sc, logger)
 
         chunk.export(out_file, format="mp3", **export_kwargs)
         # Copy metadata from source to target
         try:
             copy_metadata(mp3_path, out_file, part_num=i+1)
         except Exception as e:
-            if sc:
-                cm.log(f"split_mp3_by_silence_intervals: warning - could not copy metadata: {e}", sc)
+            cm.log(f"split_mp3_by_silence_intervals: warning - could not copy metadata: {e}", sc, logger)
         files.append(out_file)
 
-    if sc:
-        cm.log(f"split_mp3_by_silence_intervals: exported {len(files)} files", sc)
+    cm.log(f"split_mp3_by_silence_intervals: exported {len(files)} files", sc, logger)
     return files
 
 
-def analyze_silence(mp3_path, min_silence_search_ms=200, silence_offset=-16, sc=None):
+def analyze_silence(mp3_path, min_silence_search_ms=200, silence_offset=-16, silence_thresh=None, sc=None, logger=None):
     """Analyze silence durations in the file and suggest sensible split parameters.
+
+    If `silence_thresh` is provided, it is used directly for silence detection.
+    Otherwise `silence_offset` is applied to the file's dBFS to compute a threshold.
 
     Returns a dict with keys: `audio_dBFS`, `suggested_silence_thresh`, `count_silences`,
     `median_silence_ms`, `p75_silence_ms`, and `suggested_min_silence_ms`.
     """
-    if sc:
-        cm.log("analyze_silence: loading audio...", sc)
+    cm.log("analyze_silence: loading audio...", sc, logger)
     audio = AudioSegment.from_file(mp3_path)
     audio_dbfs = audio.dBFS
 
-    suggested_silence_thresh = int(round(audio_dbfs + silence_offset))
+    if silence_thresh is None:
+        suggested_silence_thresh = int(round(audio_dbfs + silence_offset))
+    else:
+        # use provided threshold directly
+        suggested_silence_thresh = int(round(silence_thresh))
 
-    if sc:
-        cm.log(f"analyze_silence: detecting silences (min_len={min_silence_search_ms} ms, thresh={suggested_silence_thresh} dBFS)...", sc)
+    cm.log(f"analyze_silence: detecting silences (min_len={min_silence_search_ms} ms, thresh={suggested_silence_thresh} dBFS)...", sc, logger)
 
     silences = detect_silence(audio, min_silence_len=min_silence_search_ms, silence_thresh=suggested_silence_thresh)
     durations = [end - start for start, end in silences]
@@ -315,7 +291,6 @@ def analyze_silence(mp3_path, min_silence_search_ms=200, silence_offset=-16, sc=
             "suggested_min_silence_ms": 1000,
         })
 
-    if sc:
-        cm.log(f"analyze_silence: found {result['count_silences']} silences; suggested min_silence={result['suggested_min_silence_ms']} ms, suggested_thresh={result['suggested_silence_thresh']} dBFS", sc)
+    cm.log(f"analyze_silence: found {result['count_silences']} silences; suggested min_silence={result['suggested_min_silence_ms']} ms, suggested_thresh={result['suggested_silence_thresh']} dBFS", sc, logger)
 
     return result

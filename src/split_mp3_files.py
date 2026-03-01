@@ -11,18 +11,39 @@ from split_mp3 import split_mp3_on_silence, split_mp3_by_time, split_mp3_by_sile
 import common as cm
 import run_repo as rr
 
+# module-level logger instance to pass into cm.log calls
+logger = logging.getLogger("split_mp3")
+try:
+    repo_file = rr.get_repo_file_for_path("")
+    repo_dir = os.path.dirname(repo_file)
+    os.makedirs(repo_dir, exist_ok=True)
+    log_path = os.path.join(repo_dir, "split_mp3.log")
+    abs_log_path = os.path.abspath(log_path)
+    needs_handler = True
+    for h in logger.handlers:
+        try:
+            if isinstance(h, logging.FileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == abs_log_path:
+                needs_handler = False
+                break
+        except Exception:
+            continue
+    if needs_handler:
+        fh = logging.FileHandler(log_path, encoding="utf-8")
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(logging.Formatter("%(asctime)sZ - %(levelname)s - %(message)s"))
+        logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
+except Exception:
+    pass
+
 VALID_MODES = ["Silence", "Time"]
 class SplitConstants:
     MIN_SILENCE = 1000
     SILENCE_THRESH = -40
     CHUNK_LENGTH = 60000
 
-def run_split(split_context, files, outdir, mode, min_silence=1000, silence_thresh=-40, chunk_length=60000, silence_offset=-16, adaptive=False, use_silence_intervals=False, bitrate_kbps=256, vbr_quality=None, silence_padding_ms=3000, use_logger=False):
-    if use_logger:
-        logger = logging.getLogger("split_mp3_cli")
-        logger.info("Starting split operation...")
-    else:
-        cm.log("Starting split operation...", split_context)
+def run_split(split_context, files, outdir, mode, min_silence=1000, silence_thresh=-40, chunk_length=60000, silence_offset=-16, adaptive=False, use_silence_intervals=False, bitrate_kbps=256, vbr_quality=None, silence_padding_ms=3000):
+    cm.log("Starting split operation...", split_context, logger)
 
     # Log full parameter set before starting
     params = {
@@ -37,57 +58,39 @@ def run_split(split_context, files, outdir, mode, min_silence=1000, silence_thre
         "vbr_quality": vbr_quality,
         "silence_padding_ms": silence_padding_ms,
     }
-    if use_logger:
-        logger.info(f"Parameters: {params}")
-    else:
-        cm.log(f"Parameters: {params}", split_context)
+    cm.log(f"Parameters: {params}", split_context, logger)
 
     if not files or not files[0]:
         msg = "No files selected."
-        if use_logger:
-            logger.error(msg)
-        else:
-            messagebox.showerror("Error", msg)
-            cm.log(msg, split_context)
+        messagebox.showerror("Error", msg)
+        cm.log(msg, split_context, logger)
         return
     if not outdir:
         msg = "No output directory selected."
-        if use_logger:
-            logger.error(msg)
-        else:
-            messagebox.showerror("Error", msg)
-            cm.log(msg, split_context)
+        messagebox.showerror("Error", msg)
+        cm.log(msg, split_context, logger)
         return
 
     try:
         if mode == "Silence":
             for f in files:
                 msg = f"Splitting {os.path.basename(f)} on silence..."
-                if use_logger:
-                    logger.info(msg)
-                else:
-                    cm.log(msg, split_context)
+                cm.log(msg, split_context, logger)
                 # Save the run options for this source file before processing
                 try:
                     rr.save_run(f, params)
                 except Exception:
                     pass
                 if adaptive:
-                    output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh=None, silence_offset=silence_offset, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context)
+                    output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh=None, silence_offset=silence_offset, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context, logger=logger)
                 else:
-                    output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context)
+                    output_files = split_mp3_on_silence(f, outdir, min_silence, silence_thresh, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context, logger=logger)
                 msg = f"Created {len(output_files)} chunks for {os.path.basename(f)}"
-                if use_logger:
-                    logger.info(msg)
-                else:
-                    cm.log(msg, split_context)
+                cm.log(msg, split_context, logger)
         else:
             for f in files:
                 msg = f"Splitting {os.path.basename(f)} by time interval..."
-                if use_logger:
-                    logger.info(msg)
-                else:
-                    cm.log(msg, split_context)
+                cm.log(msg, split_context, logger)
                 # Save the run options for this source file before processing
                 try:
                     rr.save_run(f, params)
@@ -97,25 +100,15 @@ def run_split(split_context, files, outdir, mode, min_silence=1000, silence_thre
                     output_files = split_mp3_by_silence_intervals(f, out_dir=outdir, min_silence_len=min_silence, silence_thresh=(None if adaptive else silence_thresh), silence_offset=silence_offset, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context)
                 else:
                     output_files = split_mp3_by_time(f, outdir, chunk_length, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, sc=split_context)
-                msg = f"Created {len(output_files)} chunks for {os.path.basename(f)}"
-                if use_logger:
-                    logger.info(msg)
-                else:
-                    cm.log(msg, split_context)
+                cm.log(msg, split_context, logger)
         msg = "Splitting completed successfully."
-        if use_logger:
-            logger.info(msg)
-        else:
-            messagebox.showinfo("Success", "MP3 splitting completed!")
-            cm.log(msg, split_context)
+        messagebox.showinfo("Success", "MP3 splitting completed!")
+        cm.log(msg, split_context, logger)
     except Exception as e:
         tb = traceback.format_exc()
         msg = f"Error: {e}\n{tb}"
-        if use_logger:
-            logger.error(msg)
-        else:
-            cm.log(msg, split_context)
-            messagebox.showerror("Error", f"An error occurred:\n{e}")
+        cm.log(msg, split_context, logger)
+        messagebox.showerror("Error", f"An error occurred:\n{e}")
 
 
 def start_gui(runs_dir=None):
@@ -152,16 +145,17 @@ def start_gui(runs_dir=None):
         # If adaptive checkbox is set, pass silence_thresh as None so run_split computes it
         adaptive = adaptive_var.get()
         silence_offset = int(silence_offset_var.get()) if silence_offset_var.get().strip() else -16
-        silence_thresh = None if adaptive else (int(silence_thresh_var.get()) if silence_thresh_var.get().strip() else SplitConstants.SILENCE_THRESH)
+        silence_thresh = 0 if adaptive else (int(silence_thresh_var.get()) if silence_thresh_var.get().strip() else SplitConstants.SILENCE_THRESH)
         chunk_length = int(chunk_length_var.get()) if chunk_length_var.get().strip() else SplitConstants.CHUNK_LENGTH
         use_silence_intervals = use_silence_intervals_var.get() if 'use_silence_intervals_var' in globals() or 'use_silence_intervals_var' in locals() else False
         bitrate_kbps = int(bitrate_var.get()) if bitrate_var.get().strip() else 256
         vbr_quality = int(vbr_quality_var.get()) if vbr_quality_var.get().strip() else None
         silence_padding_ms = int(silence_padding_var.get()) if silence_padding_var.get().strip() else 3000
-        run_split(sc, files, outdir, mode, min_silence, silence_thresh, chunk_length, silence_offset=silence_offset, adaptive=adaptive, use_silence_intervals=use_silence_intervals, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms, use_logger=False)
+        run_split(sc, files, outdir, mode, min_silence, silence_thresh, chunk_length, silence_offset=silence_offset, adaptive=adaptive, use_silence_intervals=use_silence_intervals, bitrate_kbps=bitrate_kbps, vbr_quality=vbr_quality, silence_padding_ms=silence_padding_ms)
 
     def start_split_thread():
         # Before starting: save current options to repo and insert a history entry at top
+        saved_repo_paths = []
         try:
             files = files_var.get().strip().split('\n') if files_var.get().strip() else None
             if files and files[0]:
@@ -228,9 +222,9 @@ def start_gui(runs_dir=None):
                     split_btn.config(state=tk.NORMAL)
                     # Log repository file paths where runs were recorded
                     try:
-                        if saved_repo_paths:
+                        if len(saved_repo_paths) > 0:
                             for p in saved_repo_paths:
-                                cm.log(f"Run configuration written to: {p}", sc)
+                                cm.log(f"Run configuration written to: {p}", sc, logger)
                     except Exception:
                         pass
                 root.after(0, on_done)
@@ -239,7 +233,20 @@ def start_gui(runs_dir=None):
 
     root = tk.Tk()
     root.title("MP3 Splitter")
-    root.geometry("620x540")
+    # Start the UI maximized while keeping window decorations (maximize/minimize/restore)
+    try:
+        # Preferred cross-platform way to maximize
+        root.state('zoomed')
+        # Allow Escape to restore to normal windowed state
+        root.bind("<Escape>", lambda e: root.state('normal'))
+    except Exception:
+        try:
+            # Some platforms support -zoomed attribute
+            root.attributes('-zoomed', True)
+            root.bind("<Escape>", lambda e: root.attributes('-zoomed', False))
+        except Exception:
+            # Fallback to a large default window size
+            root.geometry("1024x768")
 
     files_var = tk.StringVar()
     outdir_var = tk.StringVar()
@@ -362,9 +369,36 @@ def start_gui(runs_dir=None):
         # run analysis in background
         def do_analysis():
             try:
-                result = analyze_silence(f, min_silence_search_ms=200, silence_offset=int(silence_offset_var.get()) if silence_offset_var.get().strip() else -16, sc=sc)
+                # Use the GUI values for analysis
+                min_search = int(min_silence_var.get()) if min_silence_var.get().strip() else SplitConstants.MIN_SILENCE
+                silence_offset_val = int(silence_offset_var.get()) if silence_offset_var.get().strip() else -16
+                # If adaptive is unchecked and a silence_thresh is provided, use it directly
+                if adaptive_var.get():
+                    provided_thresh = None
+                else:
+                    provided_thresh = int(silence_thresh_var.get()) if silence_thresh_var.get().strip() else None
+
+                result = analyze_silence(f, min_silence_search_ms=min_search, silence_offset=silence_offset_val, silence_thresh=provided_thresh, sc=sc, logger=logger)
+
                 def finish():
                     # Show analysis result and ask if user wants to update GUI options
+                    # Log analysis details so they are available later even if user skips applying them
+                    try:
+                        cm.log(f"Analysis for {os.path.basename(f)}:", sc, logger)
+                        cm.log(f"  audio_dBFS: {result.get('audio_dBFS'):.1f} dBFS", sc, logger)
+                        cm.log(f"  detected_silences: {result.get('count_silences')}", sc, logger)
+                        cm.log(f"  median_silence_ms: {result.get('median_silence_ms', 0)}", sc, logger)
+                        cm.log(f"  p75_silence_ms: {result.get('p75_silence_ms', 0)}", sc, logger)
+                        cm.log(f"  suggested_min_silence_ms: {result.get('suggested_min_silence_ms')}", sc, logger)
+                        cm.log(f"  suggested_silence_thresh: {result.get('suggested_silence_thresh')}", sc, logger)
+                        # Also log a truncated list of detected silence durations for reference
+                        durs = result.get('durations_ms', []) or []
+                        if durs:
+                            sample = durs[:20]
+                            cm.log(f"  sample_silence_durations_ms (first {len(sample)}): {sample}", sc, logger)
+                    except Exception:
+                        pass
+
                     message = f"Detected {result['count_silences']} silences.\nSuggested min_silence={result.get('suggested_min_silence_ms')} ms\nSuggested silence_thresh={result.get('suggested_silence_thresh')} dBFS\n\nWould you like to update the GUI options with these values?"
                     response = messagebox.askyesno("Analysis Complete", message)
                     if response:
@@ -406,6 +440,23 @@ def start_gui(runs_dir=None):
     tk.Button(button_frame, text="Analyze File", command=on_analyze_button).pack(side="left", padx=4)
     split_btn = tk.Button(button_frame, text="Start Splitting", command=start_split_thread, bg="#28a745", fg="white")
     split_btn.pack(side="left", padx=4)
+    def reset_to_defaults():
+        # Restore the GUI options to their initial default values
+        files_var.set("")
+        outdir_var.set("")
+        mode_var.set("Silence")
+        min_silence_var.set(str(SplitConstants.MIN_SILENCE))
+        silence_thresh_var.set(str(SplitConstants.SILENCE_THRESH))
+        silence_offset_var.set(str(-16))
+        adaptive_var.set(False)
+        use_silence_intervals_var.set(False)
+        chunk_length_var.set(str(SplitConstants.CHUNK_LENGTH))
+        bitrate_var.set(str(256))
+        vbr_quality_var.set("")
+        silence_padding_var.set(str(3000))
+        update_options()
+
+    tk.Button(button_frame, text="Reset to default", command=reset_to_defaults).pack(side="left", padx=4)
     button_frame.pack(pady=10)
 
     # Progress indicator and status
@@ -419,7 +470,7 @@ def start_gui(runs_dir=None):
     sc = cm.scriptClass()
     sc.set_log_text(scrolledtext.ScrolledText(root, height=10, state=tk.DISABLED, wrap='word', bg="#f7f7f7"))
     sc1 = sc.get_log_text()
-    sc1.pack(fill="both", expand=True, padx=10, pady=(0,10))
+    sc1.pack(fill="both", expand=True, padx=10, pady=(0,10)) # type: ignore
 
     tk.Label(root, text="Note: Requires ffmpeg installed and available in PATH.", fg="gray").pack(side="bottom", pady=5)
 
@@ -475,14 +526,39 @@ def main_cli():
             print(f"Could not create output directory: {args.output_dir}\n{e}")
             sys.exit(1)
 
-    logging.basicConfig(level=logging.INFO)
+    # Configure logging to write both to console and to a persistent log file
+    try:
+        # derive runs dir and logfile path
+        repo_file = rr.get_repo_file_for_path(args.input_files[0] if args.input_files else "")
+        repo_dir = os.path.dirname(repo_file)
+        os.makedirs(repo_dir, exist_ok=True)
+        log_path = os.path.join(repo_dir, "split_mp3.log")
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        # clear default handlers
+        for h in list(root_logger.handlers):
+            root_logger.removeHandler(h)
+
+        fh = logging.FileHandler(log_path, encoding="utf-8")
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(logging.Formatter("%(asctime)sZ - %(levelname)s - %(message)s"))
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setLevel(logging.INFO)
+        sh.setFormatter(logging.Formatter("%(message)s"))
+
+        root_logger.addHandler(fh)
+        root_logger.addHandler(sh)
+    except Exception:
+        # fallback to basic config if file logging setup fails
+        logging.basicConfig(level=logging.INFO)
     # If analysis-only requested, run analysis and print results
     if args.analyze:
         for f in args.input_files:
             if not os.path.isfile(f):
                 print(f"Input file not found: {f}")
                 continue
-            res = analyze_silence(f, min_silence_search_ms=200, silence_offset=args.silence_offset)
+            res = analyze_silence(f, min_silence_search_ms=200, silence_offset=args.silence_offset, logger=logger)
             print(f"Analysis for {f}:")
             print(f"  audio dBFS: {res['audio_dBFS']:.1f} dBFS")
             print(f"  detected silences: {res['count_silences']}")
@@ -507,7 +583,7 @@ def main_cli():
         bitrate_kbps=args.bitrate,
         vbr_quality=args.vbr_quality,
         silence_padding_ms=args.silence_padding,
-        use_logger=True,
+        # use_logger removed — logging is handled via cm.log and module logger
     )
 
 if __name__ == "__main__":
